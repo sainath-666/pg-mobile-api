@@ -115,4 +115,84 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+/**
+ * @route   PUT /api/pgs/:id
+ * @desc    Update a PG (owner only)
+ * @access  Private (owner)
+ */
+router.put("/:id", protect, requireOwner, async (req, res) => {
+  try {
+    const pg = await PG.findById(req.params.id);
+
+    if (!pg) {
+      return res.status(404).json({ message: "PG not found" });
+    }
+
+    // Check if user owns this PG
+    if (pg.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to update this PG" });
+    }
+
+    const {
+      name,
+      description,
+      address,
+      area,
+      genderType,
+      hasFood,
+      amenities,
+      rooms,
+      photos,
+    } = req.body;
+
+    // Update fields
+    if (name) pg.name = name;
+    if (description !== undefined) pg.description = description;
+    if (address) pg.address = address;
+    if (area) pg.area = area;
+    if (genderType) pg.genderType = genderType;
+    if (hasFood !== undefined) pg.hasFood = !!hasFood;
+    if (amenities) pg.amenities = amenities;
+    if (rooms) pg.rooms = rooms;
+    if (photos) pg.photos = photos;
+
+    await pg.save();
+
+    res.json({
+      message: "PG updated successfully",
+      pg,
+    });
+  } catch (error) {
+    console.error("Update PG error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @route   DELETE /api/pgs/:id
+ * @desc    Delete a PG (owner only)
+ * @access  Private (owner)
+ */
+router.delete("/:id", protect, requireOwner, async (req, res) => {
+  try {
+    const pg = await PG.findById(req.params.id);
+
+    if (!pg) {
+      return res.status(404).json({ message: "PG not found" });
+    }
+
+    // Check if user owns this PG
+    if (pg.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to delete this PG" });
+    }
+
+    await PG.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "PG deleted successfully" });
+  } catch (error) {
+    console.error("Delete PG error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router;

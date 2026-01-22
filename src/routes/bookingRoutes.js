@@ -132,4 +132,63 @@ router.get("/owner", protect, requireOwner, async (req, res) => {
 });
 
 
+// ==========================
+// ACCEPT/REJECT BOOKING (OWNER)
+// ==========================
+router.patch("/:id/status", protect, requireOwner, async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!["confirmed", "cancelled"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status. Use 'confirmed' or 'cancelled'" });
+    }
+
+    const booking = await Booking.findById(req.params.id).populate("pg");
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // Check if user owns the PG
+    if (booking.pg.owner.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Not authorized to update this booking" });
+    }
+
+    const oldStatus = booking.status;
+    booking.status = status;
+
+    // If rejecting/cancelling, restore available beds
+    if (status === "cancelled" && oldStatus === "pending") {
+      const pg = await PG.findById(booking.pg._id);
+      const room = pg.rooms.find(r => r.type === booking.roomType);
+      if (room) {
+        room.availableBeds += 1;
+        await pg.save();
+      }
+    }
+
+    // If confirming, ensure beds are already reduced (they should be from creation)
+    // If rejecting a confirmed booking, restore beds
+    if (oldStatus === "confirmed" && status === "cancelled") {
+      const pg = await PG.findById(booking.pg._id);
+      const room = pg.rooms.find(r => r.type === booking.roomType);
+      if (room) {
+        room.availableBeds += 1;
+        await pg.save();
+      }
+    }
+
+    await booking.save();
+
+    res.json({
+      message: `Booking ${status} successfully`,
+      booking,
+    });
+  } catch (error) {
+    console.error("Update booking status error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 module.exports = router;
