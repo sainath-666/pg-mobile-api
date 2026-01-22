@@ -3,6 +3,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const { protect } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -111,6 +112,62 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// PUT /api/auth/profile - Update user profile
+router.put("/profile", protect, async (req, res) => {
+  try {
+    const { name, email, phone } = req.body;
+    const userId = req.user._id;
+
+    // Basic validation
+    if (!name || !email || !phone) {
+      return res.status(400).json({ message: "Name, email, and phone are required" });
+    }
+
+    // Check if email or phone is already taken by another user
+    const existingUser = await User.findOne({
+      $or: [{ email }, { phone }],
+      _id: { $ne: userId }, // Exclude current user
+    });
+
+    if (existingUser) {
+      if (existingUser.email === email) {
+        return res.status(400).json({ message: "Email is already taken" });
+      }
+      if (existingUser.phone === phone) {
+        return res.status(400).json({ message: "Phone number is already taken" });
+      }
+    }
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { name, email, phone },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      message: "Profile updated successfully",
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
+        role: updatedUser.role,
+      },
+    });
+  } catch (error) {
+    console.error("Update profile error:", error.message);
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: "Server error" });
   }
 });
