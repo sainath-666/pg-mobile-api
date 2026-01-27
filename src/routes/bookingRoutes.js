@@ -8,20 +8,12 @@ const { protect, requireOwner } = require("../middleware/auth");
 
 const router = express.Router();
 
-
 // ==========================
 // CREATE BOOKING (USER)
 // ==========================
 router.post("/", protect, async (req, res) => {
   try {
-    const {
-      pgId,
-      roomType,
-      stayType,
-      checkInDate,
-      days,
-      months
-    } = req.body;
+    const { pgId, roomType, stayType, checkInDate, days, months } = req.body;
 
     if (!pgId || !roomType || !stayType || !checkInDate) {
       return res.status(400).json({ message: "Missing required fields" });
@@ -33,7 +25,7 @@ router.post("/", protect, async (req, res) => {
       return res.status(404).json({ message: "PG not found" });
     }
 
-    const room = pg.rooms.find(r => r.type === roomType);
+    const room = pg.rooms.find((r) => r.type === roomType);
 
     if (!room) {
       return res.status(404).json({ message: "Room type not found" });
@@ -48,14 +40,18 @@ router.post("/", protect, async (req, res) => {
     // Calculate price
     if (stayType === "daily") {
       if (!days || days <= 0) {
-        return res.status(400).json({ message: "Days required for daily stay" });
+        return res
+          .status(400)
+          .json({ message: "Days required for daily stay" });
       }
       totalAmount = room.pricePerDay * days;
     }
 
     if (stayType === "monthly") {
       if (!months || months <= 0) {
-        return res.status(400).json({ message: "Months required for monthly stay" });
+        return res
+          .status(400)
+          .json({ message: "Months required for monthly stay" });
       }
       totalAmount = room.pricePerMonth * months;
     }
@@ -87,26 +83,32 @@ router.post("/", protect, async (req, res) => {
   }
 });
 
-
-
 // ==========================
 // USER BOOKINGS LIST
 // ==========================
 router.get("/my", protect, async (req, res) => {
   try {
-    const bookings = await Booking.find({ user: req.user._id })
-      .populate("pg");
+    const bookings = await Booking.find({ user: req.user._id }).populate("pg");
 
     res.json({ bookings });
-
   } catch (error) {
     console.error("Get user bookings error:", error.message);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-
-
+// ==========================
+// USER BOOKINGS COUNT
+// ==========================
+router.get("/my/count", protect, async (req, res) => {
+  try {
+    const count = await Booking.countDocuments({ user: req.user._id });
+    res.json({ count });
+  } catch (error) {
+    console.error("Get user bookings count error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 // ==========================
 // OWNER VIEW BOOKINGS
@@ -116,21 +118,19 @@ router.get("/owner", protect, requireOwner, async (req, res) => {
     const bookings = await Booking.find()
       .populate({
         path: "pg",
-        match: { owner: req.user._id }
+        match: { owner: req.user._id },
       })
       .populate("user", "name phone");
 
     // Remove entries where pg didn't match owner
-    const filtered = bookings.filter(b => b.pg !== null);
+    const filtered = bookings.filter((b) => b.pg !== null);
 
     res.json({ bookings: filtered });
-
   } catch (error) {
     console.error("Owner bookings error:", error.message);
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 // ==========================
 // ACCEPT/REJECT BOOKING (OWNER)
@@ -140,7 +140,9 @@ router.patch("/:id/status", protect, requireOwner, async (req, res) => {
     const { status } = req.body;
 
     if (!["confirmed", "cancelled"].includes(status)) {
-      return res.status(400).json({ message: "Invalid status. Use 'confirmed' or 'cancelled'" });
+      return res
+        .status(400)
+        .json({ message: "Invalid status. Use 'confirmed' or 'cancelled'" });
     }
 
     const booking = await Booking.findById(req.params.id).populate("pg");
@@ -151,7 +153,9 @@ router.patch("/:id/status", protect, requireOwner, async (req, res) => {
 
     // Check if user owns the PG
     if (booking.pg.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to update this booking" });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to update this booking" });
     }
 
     const oldStatus = booking.status;
@@ -160,7 +164,7 @@ router.patch("/:id/status", protect, requireOwner, async (req, res) => {
     // If rejecting/cancelling, restore available beds
     if (status === "cancelled" && oldStatus === "pending") {
       const pg = await PG.findById(booking.pg._id);
-      const room = pg.rooms.find(r => r.type === booking.roomType);
+      const room = pg.rooms.find((r) => r.type === booking.roomType);
       if (room) {
         room.availableBeds += 1;
         await pg.save();
@@ -171,7 +175,7 @@ router.patch("/:id/status", protect, requireOwner, async (req, res) => {
     // If rejecting a confirmed booking, restore beds
     if (oldStatus === "confirmed" && status === "cancelled") {
       const pg = await PG.findById(booking.pg._id);
-      const room = pg.rooms.find(r => r.type === booking.roomType);
+      const room = pg.rooms.find((r) => r.type === booking.roomType);
       if (room) {
         room.availableBeds += 1;
         await pg.save();
@@ -189,6 +193,5 @@ router.patch("/:id/status", protect, requireOwner, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 module.exports = router;
