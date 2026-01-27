@@ -93,6 +93,21 @@ router.get("/", async (req, res) => {
 });
 
 /**
+ * @route   GET /api/pgs/owner/my-pgs
+ * @desc    Get owner's PGs count
+ * @access  Private (owner)
+ */
+router.get("/owner/my-pgs", protect, requireOwner, async (req, res) => {
+  try {
+    const count = await PG.countDocuments({ owner: req.user._id });
+    res.json({ count });
+  } catch (error) {
+    console.error("Get owner PGs count error:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
  * @route   GET /api/pgs/:id
  * @desc    Get single PG details by ID
  * @access  Public
@@ -101,7 +116,7 @@ router.get("/:id", async (req, res) => {
   try {
     const pg = await PG.findById(req.params.id).populate(
       "owner",
-      "name phone email"
+      "name phone email",
     );
 
     if (!pg) {
@@ -130,7 +145,9 @@ router.put("/:id", protect, requireOwner, async (req, res) => {
 
     // Check if user owns this PG
     if (pg.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to update this PG" });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to update this PG" });
     }
 
     const {
@@ -183,7 +200,9 @@ router.delete("/:id", protect, requireOwner, async (req, res) => {
 
     // Check if user owns this PG
     if (pg.owner.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to delete this PG" });
+      return res
+        .status(403)
+        .json({ message: "Not authorized to delete this PG" });
     }
 
     await PG.findByIdAndDelete(req.params.id);
